@@ -1,3 +1,6 @@
+# Very secret things
+*.stuff
+
 # Local test files
 ltest*
 

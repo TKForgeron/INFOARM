@@ -13,6 +13,11 @@ class Repository:
         self.username = username
         self.lines_of_code = lines_of_code
         self.token = token
+        splitted_repo_link = repo_link.split('/')
+        self.owner = splitted_repo_link[-2]
+        self.repo = splitted_repo_link[-1]
+
+
 
     def get_releases(self):
         """
@@ -38,7 +43,7 @@ class Repository:
 
         collaborators = []
 
-        endpoint = f"https://api.github.com/repos/{self.repo_link.split('/')[-2]}/{self.repo_link.split('/')[-1]}/contributors?per_page=100&anon=1"
+        endpoint = f"https://api.github.com/repos/{self.owner}/{self.repo}/contributors?per_page=100&anon=1"
         response = requests.get(endpoint, auth=(self.username, self.token))
         collaborators += response.json()
         while "next" in response.links:
@@ -48,6 +53,18 @@ class Repository:
             collaborators += response.json()
 
         return collaborators
+
+    def get_num_branches(self) -> int:
+        """
+        Request all branches in repo from GitHub API and returning number of branches
+        """
+        endpoint = f"https://api.github.com/repos/{self.owner}/{self.repo}/branches"
+
+        res = requests.get(endpoint, auth=(self.username, self.token))
+        res = res.json()  # OP HET MOMENT PAKT IE 100 COMMITS
+
+        return len(res)
+
 
     def get_locpc(self) -> int:
 
@@ -64,7 +81,7 @@ class Repository:
         """
         bs_parse = partial(BeautifulSoup, features="lxml")
 
-        endpoint = f"https://api.github.com/repos/{self.repo_link.split('/')[-2]}/{self.repo_link.split('/')[-1]}/commits?per_page=100&anon=1"
+        endpoint = f"https://api.github.com/repos/{self.owner}/{self.repo}/commits?per_page=100&anon=1"
 
         res = requests.get(endpoint, auth=(self.username, self.token))
         res = res.json()  # OP HET MOMENT PAKT IE 100 COMMITS

@@ -42,9 +42,17 @@ class Repository:
         self.auth = HTTPBasicAuth(username, token)
         self.weekly_commits = None
         # checking whether repo has released anything
+        self.drop_this_repo = False
         if self.__get_num_releases():
-            # checking total commit count
-            if sum(self.__get_commits_per_week()) < 10:
+            commit_condition = len(
+                list(filter(lambda x: x != 0, self.__get_commits_per_week()))
+            )
+
+            if commit_condition < 2:  # repos should have at least 2 weeks of commits
+                self.drop_this_repo = True
+            elif (
+                sum(self.__get_commits_per_week()) < 7
+            ):  # implementing total commit count threshold of 7
                 self.drop_this_repo = True
         else:
             self.drop_this_repo = True
@@ -52,21 +60,7 @@ class Repository:
     # IF THERE IS TIME, ADD FUCNTION THAT FETCHES AMOUNT OF COMMITS
     # THAT COLLABORATORS OF THIS REPO HAVE MADE TO OTHER REPOS WHILE ACTIVE ON THIS REPO
 
-    def __get_num_releases(self):
-        """
-
-        We only analyze projects that release their code (via Git)
-
-
-        """
-
-        endpoint = f"https://api.github.com/repos/{self.repo_link.split('/')[-2]}/{self.repo_link.split('/')[-1]}/releases?per_page=100"
-        response = requests.get(endpoint, auth=self.auth).json()
-        num_releases = len(response)
-        # ONLY FIRST 100 RELEASES ARE FETCHED!!!!
-        return num_releases
-
-    def get_num_collaborators(self):
+    def get_num_collaborators(self) -> int:
 
         """
 
@@ -77,7 +71,7 @@ class Repository:
 
         collaborators = []
 
-        endpoint = f"{self.api_base_url}/contributors?per_page=100&anon=1"
+        endpoint = f"{self.api_base_url}/contributors?per_page=100"
         response = requests.get(endpoint, auth=self.auth)
         collaborators += response.json()
         while "next" in response.links:
@@ -127,8 +121,8 @@ class Repository:
 
             # calculate statistics for additions/deletions per commit per week
             mean_additions_pcommit = st.mean(avg_additions_pcommit_pweek)
-            stdev_additions_pcommit = st.stdev(avg_additions_pcommit_pweek)
             mean_deletions_pcommit = st.mean(avg_deletions_pcommit_pweek)
+            stdev_additions_pcommit = st.stdev(avg_additions_pcommit_pweek)
             stdev_deletions_pcommit = st.stdev(avg_deletions_pcommit_pweek)
 
         elif len(del_lines) > len(commits_pweek):
@@ -257,3 +251,17 @@ class Repository:
             )
 
         return added_lines, deleted_lines
+
+    def __get_num_releases(self):
+        """
+
+        We only analyze projects that release their code (via Git)
+
+
+        """
+
+        endpoint = f"https://api.github.com/repos/{self.repo_link.split('/')[-2]}/{self.repo_link.split('/')[-1]}/releases?per_page=100"
+        response = requests.get(endpoint, auth=self.auth).json()
+        num_releases = len(response)
+        # ONLY FIRST 100 RELEASES ARE FETCHED!!!!
+        return num_releases

@@ -53,8 +53,9 @@ start_time = time()
 
 repo_stats = collect_all_repo_stats(
     [
-        ("https://github.com/dib0/NHapiTools", 670090, 0.71),
+        # ("https://github.com/dib0/NHapiTools", 670090, 0.71),
         # ("https://github.com/itsaky/AnimatedTextView", 136217, 1.38),
+        ("https://github.com/TKForgeron/INFOARM", 136217, 234),
     ]
 )
 print(repo_stats)

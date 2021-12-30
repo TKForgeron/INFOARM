@@ -2,11 +2,8 @@ import numpy as np
 from requests.auth import HTTPBasicAuth
 import statistics as st
 import random
-from urllib.parse import urlparse
 import requests
 import pandas as pd
-from typing import List, Tuple
-from bs4 import BeautifulSoup
 
 
 def GET_UA():
@@ -26,31 +23,6 @@ def GET_UA():
     ]
 
     return random.choice(uastrings)
-
-
-def bs_parse_url(url: str, auth: Tuple[str] = None, accept: str = None):
-
-    if accept:
-        headers = {"User-Agent": GET_UA(), "Accept": accept}
-    else:
-        headers = {"User-Agent": GET_UA()}
-    content = None
-
-    try:
-        response = requests.get(url, headers=headers, auth=HTTPBasicAuth(auth))
-        ct = response.headers["Content-Type"].lower().strip()
-
-        if "text/html" in ct:
-            content = response.content
-            soup = BeautifulSoup(content, "lxml")
-        else:
-            content = response.content
-            soup = None
-
-    except Exception as e:
-        print("Error:", str(e))
-
-    return content, soup, ct
 
 
 class Repository:

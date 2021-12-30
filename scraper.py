@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+import time
 import numpy as np
 from requests.auth import HTTPBasicAuth
 import statistics as st
@@ -11,6 +13,12 @@ import pandas as pd
 from typing import List, Tuple
 from bs4 import BeautifulSoup
 from functools import partial
+import os
+
+# GLOBALS
+load_dotenv()
+USERNAME = os.getenv("GITHUB_USERNAME")
+TOKEN = os.getenv("GITHUB_TOKEN")
 
 
 def GET_UA():
@@ -59,7 +67,11 @@ def bs_parse_url(url: str, auth: Tuple[str] = None, accept: str = None):
 
 class Repository:
     def __init__(
-        self, repo_link: str, username: str, token: str, lines_of_code: int = None
+        self,
+        repo_link: str,
+        username: str = None,
+        token: str = None,
+        lines_of_code: int = None,
     ) -> None:
         self.repo_link = repo_link
         self.lines_of_code = lines_of_code
@@ -68,12 +80,19 @@ class Repository:
         self.repo = splitted_repo_link[-1]
         self.api_base_url = f"https://api.github.com/repos/{self.owner}/{self.repo}"
         self.auth = HTTPBasicAuth(username, token)
+        # checking whether repo has released anything
+        if self.get_num_releases():
+            # checking total commit count
+            if sum(self.get_commits_per_week()) < 10:
+                self.drop_this_repo = True
+        else:
+            self.drop_this_repo = True
 
         # phasing out the following:
         self.username = username
         self.token = token
 
-    def get_releases(self):
+    def get_num_releases(self):
         """
 
         We only analyze projects that release their code (via Git)
@@ -82,9 +101,10 @@ class Repository:
         """
         # /repos/{owner}/{repo}/releases
         endpoint = f"https://api.github.com/repos/{self.repo_link.split('/')[-2]}/{self.repo_link.split('/')[-1]}/releases?per_page=100&anon=1"
-        response = requests.get(endpoint, auth=(self.username, self.token)).json()
+        response = requests.get(endpoint, auth=self.auth).json()
+        num_releases = len(response)
 
-        return response
+        return num_releases
 
     def get_num_collaborators(self):
 
@@ -230,7 +250,7 @@ class Repository:
                 weekly_commits.append(contr_weekly_commits)
 
             weekly_commits = np.sum(np.array(weekly_commits), 0)
-            print(f"Fetched weekly commits for {self.repo}")
+            print(f"Fetched weekly commits ({sum(weekly_commits)}) for {self.repo}")
 
         except Exception as e:
             print("Error:", str(e))
@@ -310,18 +330,19 @@ class Repository:
         return added_lines, deleted_lines
 
 
+start_time = time.time()
+
 NHapiTools_repo = Repository(
     repo_link="https://github.com/dib0/NHapiTools",
     lines_of_code=670090,
-    username="TKForgeron",
-    token="",
+    username=USERNAME,
+    token=TOKEN,
 )
+INFOARM_repo = Repository("https://github.com/TKForgeron/INFOARM", USERNAME, TOKEN)
 
-# loc = NHapiTools_repo.get_loc_per_week()
-# print(loc)
-locpc = NHapiTools_repo.get_loc_per_commit()
-print(locpc)
-locpc_slow = NHapiTools_repo.get_loc_per_commit_slow()
-print(locpc_slow)
-# col = NHapiTools_repo.get_num_collaborators()
-# print(col)
+NHapiTools_repo.get_num_releases()
+NHapiTools_repo.get_loc_per_commit()
+NHapiTools_repo.get_num_collaborators()
+NHapiTools_repo.get_num_branches()
+
+print(f"\n{time.time() - start_time} seconds")

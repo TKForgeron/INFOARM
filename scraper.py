@@ -1,3 +1,4 @@
+import numpy as np
 from requests.auth import HTTPBasicAuth
 import statistics as st
 import json
@@ -119,7 +120,54 @@ class Repository:
         return len(res)
 
     def get_loc_per_commit(self):
+        add_lines, del_lines = self.get_loc_per_week()
+        commits_pweek = self.get_commits_per_week()
 
+        if len(del_lines) == len(commits_pweek) and len(add_lines) == len(del_lines):
+            # weet ff niet hoe ik dit doe in NumPy
+            # deleting all weeks where commit_count==0 (to prevent division by 0 later on...)
+            add_del_comm_pweek = pd.DataFrame(
+                np.array([add_lines, del_lines, commits_pweek]).T
+            )
+            index_to_be_dropped = add_del_comm_pweek[add_del_comm_pweek[2] == 0].index
+            add_del_comm_pweek = add_del_comm_pweek.drop(index_to_be_dropped)
+
+            # back to numpy for speed
+            add_del_comm_pweek = add_del_comm_pweek.to_numpy().T
+            add_lines = add_del_comm_pweek[0]
+            del_lines = add_del_comm_pweek[1]
+            commits_pweek = add_del_comm_pweek[2]
+
+            # get avg additions/deletions per commit per week
+            avg_additions_pcommit_pweek = np.divide(add_lines, commits_pweek)
+            avg_deletions_pcommit_pweek = np.divide(del_lines, commits_pweek)
+
+            # calculate statistics for additions/deletions per commit per week
+            mean_additions_pcommit = st.mean(avg_additions_pcommit_pweek)
+            stdev_additions_pcommit = st.stdev(avg_additions_pcommit_pweek)
+            mean_deletions_pcommit = st.mean(avg_deletions_pcommit_pweek)
+            stdev_deletions_pcommit = st.stdev(avg_deletions_pcommit_pweek)
+
+        elif len(del_lines) > len(commits_pweek):
+            print("len(del_lines) > len(commits_pweek)")
+        elif len(add_lines) > len(commits_pweek):
+            print("len(add_lines) > len(commits_pweek)")
+        elif len(add_lines) < len(commits_pweek):
+            print("len(add_lines) < len(commits_pweek)")
+        elif len(del_lines) < len(commits_pweek):
+            print("len(del_lines) < len(commits_pweek)")
+        else:
+            print("is this even possible?")
+
+        return (
+            mean_additions_pcommit,
+            mean_deletions_pcommit,
+            stdev_additions_pcommit,
+            stdev_deletions_pcommit,
+        )
+
+    def get_commits_per_week(self) -> list[int]:
+        # python 3.8 and earlier: List[int] (and import List from typing module)
         """
 
         Get list of commits from API
@@ -131,20 +179,14 @@ class Repository:
 
 
         """
-        endpoint_code_frequency = f"{self.api_base_url}/stats/code_frequency"
-        endpoint_participation = f"{self.api_base_url}/stats/participation"
         endpoint_contributors = f"{self.api_base_url}/stats/contributors"
-        endpoint_commit_activity = f"{self.api_base_url}/stats/commit_activity"
+        # endpoint_code_frequency = f"{self.api_base_url}/stats/code_frequency"
+        # endpoint_participation = f"{self.api_base_url}/stats/participation"
+        # endpoint_commit_activity = f"{self.api_base_url}/stats/commit_activity"
+
+        weekly_commits = ["Nothing Found..."]
 
         try:
-            res_participation = requests.get(
-                endpoint_participation,
-                headers={
-                    "User-Agent": GET_UA(),
-                    "accept": "application/vnd.github.v3+json",
-                },
-                auth=self.auth,
-            ).json()
             res_contributors = requests.get(
                 endpoint_contributors,
                 headers={
@@ -153,32 +195,47 @@ class Repository:
                 },
                 auth=self.auth,
             ).json()
-            res_code_freq = requests.get(
-                endpoint_code_frequency,
-                headers={
-                    "User-Agent": GET_UA(),
-                    "accept": "application/vnd.github.v3+json",
-                },
-                auth=self.auth,
-            ).json()
-            res_commit_activity = requests.get(
-                endpoint_commit_activity,
-                headers={
-                    "User-Agent": GET_UA(),
-                    "accept": "application/vnd.github.v3+json",
-                },
-                auth=self.auth,
-            ).json()
+            # res_participation = requests.get(
+            #     endpoint_participation,
+            #     headers={
+            #         "User-Agent": GET_UA(),
+            #         "accept": "application/vnd.github.v3+json",
+            #     },
+            #     auth=self.auth,
+            # ).json()
+            # res_code_freq = requests.get(
+            #     endpoint_code_frequency,
+            #     headers={
+            #         "User-Agent": GET_UA(),
+            #         "accept": "application/vnd.github.v3+json",
+            #     },
+            #     auth=self.auth,
+            # ).json()
+            # res_commit_activity = requests.get(
+            #     endpoint_commit_activity,
+            #     headers={
+            #         "User-Agent": GET_UA(),
+            #         "accept": "application/vnd.github.v3+json",
+            #     },
+            #     auth=self.auth,
+            # ).json()
 
-            # print(sum(res_participation["all"]))
-            print(len(res_commit_activity))
+            weekly_commits = []
+            for rc in res_contributors:
+                contr_weekly_commits = []
 
-            # for c in res_contributors:
-            #     print(c["author"]["login"])
+                for week in rc["weeks"]:
+                    contr_weekly_commits.append(week["c"])
+
+                weekly_commits.append(contr_weekly_commits)
+
+            weekly_commits = np.sum(np.array(weekly_commits), 0)
+            print(f"Fetched weekly commits for {self.repo}")
+
         except Exception as e:
             print("Error:", str(e))
 
-        # return
+        return list(weekly_commits)
 
     def get_loc_per_commit_slow(self) -> int:
 
@@ -232,7 +289,7 @@ class Repository:
         mean_added_locpc = sum(added_lines) / len(commit)
         mean_deleted_locpc = sum(deleted_lines) / len(commit)
 
-        return mean_added_locpc - mean_deleted_locpc
+        return mean_added_locpc, mean_deleted_locpc
 
     def get_loc_per_week(self) -> int:
 
@@ -253,7 +310,6 @@ class Repository:
         )
         accept = "application/json"
         headers = {"User-Agent": GET_UA(), "Accept": accept}
-        auth = (self.username, self.token)
 
         endpoint_code_frequency = f"{self.api_base_url}/stats/code_frequency"
 
@@ -266,7 +322,7 @@ class Repository:
             #         "User-Agent": GET_UA(),
             #         "accept": "application/vnd.github.v3+json",
             #     },
-            #     auth=(self.username, self.token),
+            #     auth=self.auth,
             # )
 
             weekly_changes = res.json()
@@ -276,15 +332,14 @@ class Repository:
         added_lines = []
         deleted_lines = []
         for changes in weekly_changes:
-            if changes[1] != 0:
-                added_lines.append(changes[1])
-                deleted_lines.append(changes[2])
-            else:
-                if changes[2] != 0:
-                    added_lines.append(changes[1])
-                    deleted_lines.append(changes[2])
-                else:
-                    pass  # of kan dit gwn weg?
+            added_lines.append(changes[1])
+            deleted_lines.append(changes[2])
+            # if changes[1] != 0:
+            #     added_lines.append(changes[1])
+            #     deleted_lines.append(changes[2])
+            # elif changes[2] != 0:
+            #     added_lines.append(changes[1])
+            #     deleted_lines.append(changes[2])
 
         # print(f"added: {added_lines}")
         # print(f"deleted: {deleted_lines}")
@@ -312,7 +367,7 @@ class Repository:
 NHapiTools_repo = Repository(
     repo_link="https://github.com/dib0/NHapiTools",
     lines_of_code=670090,
-    username="",
+    username="TKForgeron",
     token="",
 )
 
@@ -320,5 +375,7 @@ NHapiTools_repo = Repository(
 # print(loc)
 locpc = NHapiTools_repo.get_loc_per_commit()
 print(locpc)
+locpc_slow = NHapiTools_repo.get_loc_per_commit_slow()
+print(locpc_slow)
 # col = NHapiTools_repo.get_num_collaborators()
 # print(col)

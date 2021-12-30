@@ -237,60 +237,6 @@ class Repository:
 
         return list(weekly_commits)
 
-    def get_loc_per_commit_slow(self) -> int:
-
-        """
-
-        Get list of commits from API
-        Use scraper to get data
-
-        only scrape repos with 50+ commits, --bc less than that doesn't represent code projects that work together (via Git)
-        random sample 100 commits (when repo has 100+ commits) for locpc --bc we are limited in computational power
-
-
-
-        """
-
-        endpoint = f"https://api.github.com/repos/{self.owner}/{self.repo}/commits?per_page=100&anon=1"
-        content, soup, ct1 = bs_parse_url(
-            endpoint, auth=(self.username, self.token), accept="application/json"
-        )  # OP HET MOMENT PAKT IE 100 COMMITS
-
-        try:
-            json_content = json.loads(content)
-        except Exception as e:
-            print("Error:", str(e))
-            print("MY ERROR NOTICE: content is not JSON")
-
-        commits = []
-        added_lines = []
-        deleted_lines = []
-
-        for jc in json_content:
-            commit_url = jc["commit"]["url"]
-            suffix = commit_url.split("/")[-1]
-            commits.append(suffix)
-
-        for commit in commits:
-            scraping_url = f"{self.repo_link}/commit/{commit}"
-            c, soepie, ct2 = bs_parse_url(scraping_url)
-            div = soepie.find_all(class_="toc-diff-stats").pop()
-            strong1 = div.strong.string
-            strong2 = div.strong.next_sibling.next_sibling.string
-            added_lines.append(strong1.split(" ")[0])
-            deleted_lines.append(strong2.split(" ")[0])
-
-        added_lines = list(map(int, added_lines))
-        deleted_lines = list(map(int, deleted_lines))
-
-        print(f"added: {added_lines}")
-        print(f"deleted: {deleted_lines}")
-
-        mean_added_locpc = sum(added_lines) / len(commit)
-        mean_deleted_locpc = sum(deleted_lines) / len(commit)
-
-        return mean_added_locpc, mean_deleted_locpc
-
     def get_loc_per_week(self) -> int:
 
         """

@@ -1,5 +1,6 @@
 # Very secret things
 *.stuff
+.env
 
 # Local test files
 ltest*

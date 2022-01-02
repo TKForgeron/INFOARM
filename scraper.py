@@ -1,83 +1,63 @@
-import requests
 import pandas as pd
-from typing import List, Tuple
-from bs4 import BeautifulSoup
-from functools import partial
+from dotenv import load_dotenv
+import os
+from time import time
+
+from pandas.core.frame import DataFrame
+from repository import Repository
+
+# GLOBALS
+load_dotenv()
+USERNAME = os.getenv("GITHUB_USERNAME")
+TOKEN = os.getenv("GITHUB_TOKEN")
 
 
-class Repository:
-    def __init__(self, repo_link: str, username: str, token: str) -> None:
-        self.repo_link = repo_link
-        self.username = username
-        self.token = token
-
-    def get_num_collaborators(self):
-
-        """
-
-        Using API instead of scraper as the github console only shows the recent / top committers
-
-
-        """
-
-        collaborators = []
-
-        endpoint = f"https://api.github.com/repos/{self.repo_link.split('/')[-2]}/{self.repo_link.split('/')[-1]}/contributors?per_page=100&anon=1"
-        response = requests.get(endpoint, auth=(self.username, self.token))
-        collaborators += response.json()
-        while "next" in response.links:
-            endpoint = response.links["next"]["url"]
-            print(f"Getting next url {endpoint}")
-            response = requests.get(endpoint, auth=(self.username, self.token))
-            collaborators += response.json()
-
-        return collaborators
-
-    def get_locpc(self) -> int:
-
-        """
-
-        Get list of commits from API
-        Use scraper to get data
+def get_repo_stats(url: str, loc: int, qscore: float) -> dict[str, float]:
+    repo = Repository(url, loc, USERNAME, TOKEN)
+    if repo.drop_this_repo:
+        return {}
+    else:
+        num_col = repo.get_num_collaborators()
+        num_bran = repo.get_num_branches()
+        (
+            mean_additions_pcommit,
+            mean_deletions_pcommit,
+            stdev_additions_pcommit,
+            stdev_deletions_pcommit,
+        ) = repo.get_loc_per_commit()
+    return {
+        "qscore": qscore,
+        "loc": loc,
+        "num_col": num_col,
+        "num_bran": num_bran,
+        "mean_additions_pcommit": mean_additions_pcommit,
+        "mean_deletions_pcommit": mean_deletions_pcommit,
+        "stdev_additions_pcommit": stdev_additions_pcommit,
+        "stdev_deletions_pcommit": stdev_deletions_pcommit,
+    }
 
 
-        """
-        bs_parse = partial(BeautifulSoup, features="lxml")
+def collect_all_repo_stats(repos) -> pd.DataFrame:
+    all_stats = []
+    for repo in repos:
+        url = repo[0]
+        loc = repo[1]
+        qscore = repo[2]
+        repo_stats = get_repo_stats(url, loc, qscore)
+        all_stats.append(repo_stats)
 
-        endpoint = f"https://api.github.com/repos/{self.repo_link.split('/')[-2]}/{self.repo_link.split('/')[-1]}/commits?per_page=100&anon=1"
+    return pd.DataFrame(all_stats)
 
-        res = requests.get(endpoint, auth=(self.username, self.token))
-        res = res.json()  # OP HET MOMENT PAKT IE 100 COMMITS
 
-        commits = []
-        added_lines = []
-        deleted_lines = []
+start_time = time()
 
-        for r in res:
-            commit_url = r["commit"]["url"]
-            suffix = commit_url.split("/")[-1]
-            commits.append(suffix)
+repo_stats = collect_all_repo_stats(
+    [
+        # ("https://github.com/dib0/NHapiTools", 670090, 0.71),
+        # ("https://github.com/itsaky/AnimatedTextView", 136217, 1.38),
+        ("https://github.com/TKForgeron/INFOARM", 136217, 34),
+    ]
+)
+print(repo_stats)
 
-        for commit in commits:
-            scraping_url = f"{self.repo_link}/commit/{commit}"
-            bs_res = requests.get(scraping_url)
-            bs_parse = partial(
-                BeautifulSoup, features="lxml"
-            )  # pure flex met partial functie
-            doc = bs_parse(bs_res.text)
-            div = doc.find_all(class_="toc-diff-stats").pop()
-            strong1 = div.strong.string
-            strong2 = div.strong.next_sibling.next_sibling.string
-            added_lines.append(strong1.split(" ")[0])
-            deleted_lines.append(strong2.split(" ")[0])
-
-        added_lines = list(map(int, added_lines))
-        deleted_lines = list(map(int, deleted_lines))
-
-        print(f"added: {added_lines}")
-        print(f"deleted: {deleted_lines}")
-
-        mean_added_locpc = sum(added_lines) / len(commit)
-        mean_deleted_locpc = sum(deleted_lines) / len(commit)
-
-        return mean_added_locpc - mean_deleted_locpc
+print(f"\n{time() - start_time} seconds")

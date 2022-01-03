@@ -1,10 +1,11 @@
+from typing import Dict
 import numpy as np
 from requests.auth import HTTPBasicAuth
 import statistics as st
 import random
 import requests
 import pandas as pd
-
+from config import config
 
 def GET_UA():
     uastrings = [
@@ -29,18 +30,19 @@ class Repository:
     def __init__(
         self,
         repo_link: str,
-        username: str = None,
-        token: str = None,
-        lines_of_code: int = None,
+        q_scored_data: dict = {}
     ) -> None:
         self.repo_link = repo_link
-        self.lines_of_code = lines_of_code
         splitted_repo_link = repo_link.split("/")
         self.owner = splitted_repo_link[-2]
         self.repo = splitted_repo_link[-1]
         self.api_base_url = f"https://api.github.com/repos/{self.owner}/{self.repo}"
-        self.auth = HTTPBasicAuth(username, token)
+        self.auth = HTTPBasicAuth(config['username'], config['token'])
         self.weekly_commits = None
+        self.project_name = q_scored_data["project_name"]
+        self.score = q_scored_data["score"]
+        self.lang = q_scored_data["lang"]
+        self.lines_of_code = q_scored_data["loc"]
         # checking whether repo has released anything
         self.drop_this_repo = False
         if self.__get_num_releases():
@@ -60,6 +62,20 @@ class Repository:
     # IF THERE IS TIME, ADD FUCNTION THAT FETCHES AMOUNT OF COMMITS
     # THAT COLLABORATORS OF THIS REPO HAVE MADE TO OTHER REPOS WHILE ACTIVE ON THIS REPO
 
+    def get_all_data_as_dict(self) -> dict or bool:
+        if self.drop_this_repo:
+            return False
+        return {
+            "project_name": self.project_name,
+            "repo_link": self.repo_link,
+            "score": self.score,
+            "lang": self.lang,
+            "lines_of_code": self.lines_of_code,
+            "num_collaborators": self.get_num_collaborators(),
+            "num_branches": self.get_num_branches(),
+            "loc_per_commit": self.get_loc_per_commit(),
+        }
+
     def get_num_collaborators(self) -> int:
 
         """
@@ -76,7 +92,7 @@ class Repository:
         collaborators += response.json()
         while "next" in response.links:
             endpoint = response.links["next"]["url"]
-            print(f"Getting next url {endpoint}")
+            # print(f"Getting next url {endpoint}")
             response = requests.get(endpoint, auth=self.auth)
             collaborators += response.json()
 
@@ -125,16 +141,16 @@ class Repository:
             stdev_additions_pcommit = st.stdev(avg_additions_pcommit_pweek)
             stdev_deletions_pcommit = st.stdev(avg_deletions_pcommit_pweek)
 
-        elif len(del_lines) > len(commits_pweek):
-            print("len(del_lines) > len(commits_pweek)")
-        elif len(add_lines) > len(commits_pweek):
-            print("len(add_lines) > len(commits_pweek)")
-        elif len(add_lines) < len(commits_pweek):
-            print("len(add_lines) < len(commits_pweek)")
-        elif len(del_lines) < len(commits_pweek):
-            print("len(del_lines) < len(commits_pweek)")
-        else:
-            print("is this even possible?")
+        # elif len(del_lines) > len(commits_pweek):
+        #     print("len(del_lines) > len(commits_pweek)")
+        # elif len(add_lines) > len(commits_pweek):
+        #     print("len(add_lines) > len(commits_pweek)")
+        # elif len(add_lines) < len(commits_pweek):
+        #     print("len(add_lines) < len(commits_pweek)")
+        # elif len(del_lines) < len(commits_pweek):
+        #     print("len(del_lines) < len(commits_pweek)")
+        # else:
+        #     print("is this even possible?")
 
         return (
             mean_additions_pcommit,
@@ -184,7 +200,7 @@ class Repository:
                 weekly_commits.append(contr_weekly_commits)
 
             weekly_commits = np.sum(np.array(weekly_commits), 0)
-            print(f"Fetched weekly commits ({sum(weekly_commits)}) for {self.repo}")
+            # print(f"Fetched weekly commits ({sum(weekly_commits)}) for {self.repo}")
 
         except Exception as e:
             print("Error:", str(e))

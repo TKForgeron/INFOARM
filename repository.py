@@ -93,8 +93,13 @@ class Repository:
 
         res = requests.get(endpoint, auth=self.auth)
         res = res.json()
-
-        return len(res)
+        res = len(res)
+        if res == 1:
+            return 1
+        elif res == 2 or res == 3:
+            return 2
+        else:
+            return 3
 
     def get_loc_per_commit(self):
         add_lines, del_lines = self.__get_loc_per_week()

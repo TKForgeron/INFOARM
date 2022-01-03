@@ -85,8 +85,10 @@ class Repository:
     def get_num_branches(self) -> int:
         """
 
-        Request all branches in repo from GitHub API and returning number of branches
-
+        Request all branches in repo from GitHub API and returning one of 3 categories
+        1 = one branch 
+        2 = two or three branches
+        3 = more than four branches
 
         """
         endpoint = f"https://api.github.com/repos/{self.owner}/{self.repo}/branches"
